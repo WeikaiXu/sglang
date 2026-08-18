@@ -459,7 +459,7 @@ class DecodeCudaGraphRunner(BaseCudaGraphRunner):
         # plans (sync-free begin_forward that recomputes plan inputs on the
         # host every replay), and capturing one freezes the capture-time
         # plan — drafts go stale and accept length collapses to ~1.
-        enable_metadata_glue = envs.SGLANG_ENABLE_METADATA_GLUE_GRAPH.get()
+        enable_metadata_glue = False
         if enable_metadata_glue and model_runner.spec_algorithm.is_dflash_family():
             logger.warning(
                 "SGLANG_ENABLE_METADATA_GLUE_GRAPH is incompatible with "

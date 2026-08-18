@@ -283,7 +283,6 @@ class EAGLEDraftCudaGraphRunner(DecodeCudaGraphRunner):
         # state on replay.  The main decode runner (DecodeCudaGraphRunner) is
         # where the glue graph saves latency; draft metadata is cheaper and
         # already amortised over speculative_num_steps.
-        self._metadata_glue = None
 
     def _replay_graph(self, shape_key, forward_batch):
         return self.backend.replay(shape_key, forward_batch)

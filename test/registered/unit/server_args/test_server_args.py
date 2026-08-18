@@ -2212,5 +2212,43 @@ class TestTwoBatchOverlapBackend(CustomTestCase):
         args._check_two_batch_overlap()
 
 
+class TestDcpKvEventContract(CustomTestCase):
+    """DCP widens the radix-tree page to page_size * dcp_size, so the two
+    values every external consumer depends on -- the advertised KV-event
+    block size and the tp/dcp topology -- must reflect that."""
+
+    def test_kv_events_descriptor_reports_logical_block_size(self):
+        """Under DCP the radix tree emits KV events at page_size * dcp_size.
+        Advertising the physical page_size made every KV-aware router hash
+        prompts at the wrong width, silently pinning its hit rate to zero."""
+        kv_events = '{"publisher":"zmq","topic":"kv","endpoint":"tcp://*:5557"}'
+        args = ServerArgs(
+            model_path="dummy",
+            tp_size=4,
+            dcp_size=4,
+            page_size=64,
+            kv_events_config=kv_events,
+        )
+        self.assertEqual(args.describe_kv_events_publisher()["block_size"], 256)
+        args = ServerArgs(model_path="dummy", page_size=64, kv_events_config=kv_events)
+        self.assertEqual(args.describe_kv_events_publisher()["block_size"], 64)
+
+    def test_dcp_must_divide_tp(self):
+        """DCP ranks are carved from the attention TP group, so a non-divisor
+        was accepted and then failed in model init far from the mistake:
+        dcp_size > tp_size left a zero-sized KV group (ZeroDivisionError in
+        get_num_kv_heads), and a smaller non-divisor such as tp=4/dcp=3
+        silently mis-grouped the KV heads instead of raising at all."""
+        for tp, dcp in [(1, 2), (4, 3), (2, 4)]:
+            args = ServerArgs(model_path="dummy", tp_size=tp, dcp_size=dcp)
+            with self.assertRaisesRegex(ValueError, "must divide --tp-size"):
+                args._handle_dcp_validation()
+
+    def test_dcp_divisor_of_tp_accepted(self):
+        for tp, dcp in [(4, 4), (4, 2), (8, 4), (4, 1)]:
+            args = ServerArgs(model_path="dummy", tp_size=tp, dcp_size=dcp)
+            args._handle_dcp_validation()
+
+
 if __name__ == "__main__":
     unittest.main()

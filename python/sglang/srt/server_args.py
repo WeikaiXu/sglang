@@ -3971,6 +3971,15 @@ class ServerArgs:
                 "--decode-context-parallel-size) must be >= 1, but got "
                 f"dcp_size={self.dcp_size}."
             )
+        # Necessary, not sufficient: DCP ranks are carved from the attention
+        # TP group, whose size divides tp_size but is only known once data
+        # parallelism resolves (later than this handler).
+        if self.dcp_size > 1 and self.tp_size % self.dcp_size != 0:
+            raise ValueError(
+                "--dcp-size must divide --tp-size: DCP ranks are carved from "
+                "the attention TP group. Got "
+                f"tp_size={self.tp_size}, dcp_size={self.dcp_size}."
+            )
         if self.dcp_comm_backend in ("a2a", "fi_a2a") and self.dcp_size <= 1:
             raise ValueError(
                 f"--dcp-comm-backend {self.dcp_comm_backend} only affects the "
@@ -9614,8 +9623,10 @@ class ServerArgs:
                 "topic": "",                      # ZMQ topic prefix on the
                                                   # SUB filter (empty =
                                                   # subscribe-all)
-                "block_size": <page_size>,        # subscribers MUST hash
-                                                  # prompts at this size
+                "block_size": <page_size * dcp_size>,  # the width KV events
+                                                  # are emitted at; subscribers
+                                                  # MUST hash prompts at this
+                                                  # size
                 "dp_size": <dp_size>,             # number of SUB sockets
                                                   # to open
             }
@@ -9672,7 +9683,11 @@ class ServerArgs:
             "endpoint_host": host,
             "endpoint_port_base": port,
             "topic": cfg.topic,
-            "block_size": page_size,
+            # Under DCP the radix tree pages -- and therefore emits KV events
+            # -- at page_size * dcp_size (see mem_cache/kv_cache_builder.py).
+            # Advertise that logical width, or subscribers hash prompts at a
+            # granularity no emitted block can match.
+            "block_size": page_size * self.dcp_size,
             "dp_size": self.dp_size,
         }
 

@@ -573,15 +573,8 @@ class FlashInferMLAAttnBackend(AttentionBackend):
             self.fast_plan_kv_indptr_cpu[1 : bs + 1] = torch.cumsum(
                 self.fast_plan_kv_len_arr_cpu[:bs], dim=0
             )
-            fast_verify_plan_kwargs = self._build_fast_verify_plan_kwargs(
-                bs=bs,
-                spec_info=spec_info,
-                seq_lens_cpu=seq_lens_cpu,
-                in_capture=in_capture,
-            )
-            use_generic_fast_plan = (
-                spec_info.spec_input_type != SpecInputType.DFLASH_VERIFY
-            )
+            fast_verify_plan_kwargs = None
+            use_generic_fast_plan = True
             self.indices_updater_prefill.update(
                 req_pool_indices[:bs],
                 seq_lens[:bs],
